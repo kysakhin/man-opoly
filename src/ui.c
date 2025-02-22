@@ -1,10 +1,14 @@
 #include "../include/ui.h"
+#include "gdk/gdk.h"
 #include "gtk/gtkcssprovider.h"
 #include <stdio.h>
 #include "../include/fuzzy.h"
 #include "gtk/gtk.h"
 
 #define MAX_RESULTS 10 
+
+void create_new_tab(GtkNotebook *notebook);
+void close_tab(GtkButton *button, gpointer user_data);
 
 typedef struct Tab {
   GtkNotebook *notebook;
@@ -16,6 +20,7 @@ typedef struct {
   GtkEntry *entry;
   GtkBox *cont;
 } Widget;
+
 
 void load_css(void) 
 {
@@ -34,8 +39,11 @@ void load_css(void)
 void close_tab(GtkButton *button, gpointer user_data)
 {
   Tab *curr = (Tab *)user_data;
-  int p_num = gtk_notebook_page_num(curr->notebook, curr->child);
-  gtk_notebook_remove_page(curr->notebook, p_num);
+  int total = gtk_notebook_get_n_pages(curr->notebook);
+  if (total > 1) {
+    int p_num = gtk_notebook_page_num(curr->notebook, curr->child);
+    gtk_notebook_remove_page(curr->notebook, p_num);
+  }
 }
 
 
@@ -147,7 +155,7 @@ void fetch(GtkButton *button, gpointer user_data)
   clear_children(GTK_WIDGET(widget->cont));
 
   struct Result {
-    char line[1024];
+    char line[128];
     int score;
   };
   struct Result results[300];
@@ -190,6 +198,37 @@ void fetch(GtkButton *button, gpointer user_data)
 }
 
 
+gboolean on_key_press(GtkEventControllerKey *controller, guint keyval, guint keycode, GdkModifierType state, gpointer user_data) 
+{
+  Tab *curr = (Tab*)user_data;
+  gint total = gtk_notebook_get_n_pages(curr->notebook);
+  gint current_page = gtk_notebook_get_current_page(curr->notebook);
+  if ((state & GDK_CONTROL_MASK))
+  {
+    switch (keyval)
+    {
+      case GDK_KEY_t:
+        create_new_tab(curr->notebook);
+        return GDK_EVENT_STOP;
+
+      case GDK_KEY_w:
+        close_tab(NULL, user_data);
+        return GDK_EVENT_STOP;
+
+      case GDK_KEY_Tab:
+        int next_page = (current_page + 1) % total;
+        gtk_notebook_set_current_page(curr->notebook, next_page);
+        return GDK_EVENT_STOP;
+
+      case GDK_KEY_ISO_Left_Tab:
+        int previous_page = (current_page + 1) % total;
+        gtk_notebook_set_current_page(curr->notebook, previous_page);
+        return GDK_EVENT_STOP;
+
+    }
+  }
+  return GDK_EVENT_PROPAGATE;
+}
 
 
 void create_new_tab(GtkNotebook *notebook)
@@ -229,7 +268,7 @@ void create_new_tab(GtkNotebook *notebook)
 
   GtkWidget *content_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
 
-  GtkWidget *label_content = gtk_label_new(" man is the system's manual pager. Each page argument given to man is normally the name of a program, utility or function.\nThe manual page associated with each of these arguments is then found and displayed.\nA section, if provided, will direct man to look only in that section of the manual.\nThe default action is to search in all of the available sections following a pre-defined order (see DEFAULTS), and to show only the first page found, even if page exists in several sections.\n The table below shows the section numbers of the manual followed by the types of pages they contain.\n 1 Executable programs or shell commands\n 2 System calls (functions provided by the kernel)\n 3 Library calls (functions within program libraries)\n 4 Special files (usually found in /dev)\n 5 File formats and conventions, e.g. /etc/passwd\n 6 Games\n 7 Miscellaneous (including macro packages and conventions), e.g. man(7), groff(7), man-pages(7)\n 8 System administration commands (usually only for root)\n 9 Kernel routines [Non standard] ");
+  GtkWidget *label_content = gtk_label_new("`man` is the system's manual pager. Each page argument given to man is normally the name of a program, utility or function.\nThe manual page associated with each of these arguments is then found and displayed.\nA section, if provided, will direct man to look only in that section of the manual.\nThe default action is to search in all of the available sections following a pre-defined order (see DEFAULTS), and to show only the first page found, even if page exists in several sections.\n The table below shows the section numbers of the manual followed by the types of pages they contain.\n 1 Executable programs or shell commands\n 2 System calls (functions provided by the kernel)\n 3 Library calls (functions within program libraries)\n 4 Special files (usually found in /dev)\n 5 File formats and conventions, e.g. /etc/passwd\n 6 Games\n 7 Miscellaneous (including macro packages and conventions), e.g. man(7), groff(7), man-pages(7)\n 8 System administration commands (usually only for root)\n 9 Kernel routines [Non standard] ");
   gtk_label_set_wrap(GTK_LABEL(label_content), TRUE);
   gtk_box_append(GTK_BOX(content_box), label_content);
   gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrollable_int), content_box);
@@ -240,7 +279,15 @@ void create_new_tab(GtkNotebook *notebook)
 
   curr->tab = curr_tab;
 
+  // reorder. fix this.
+  /*gtk_notebook_set_tab_reorderable(curr_tab->notebook, curr_tab->child, TRUE);*/
+
   g_signal_connect(close_button, "clicked", G_CALLBACK(close_tab), curr_tab);
+
+  // keypress events
+  GtkEventController *controller = gtk_event_controller_key_new();
+  g_signal_connect(controller, "key-pressed", G_CALLBACK(on_key_press), curr_tab);
+  gtk_widget_add_controller(GTK_WIDGET(notebook), controller);
 
   int new_page_index = gtk_notebook_append_page(notebook, tab_content, tab_label);
 
@@ -295,13 +342,11 @@ void activate(GtkApplication* app, gpointer user_data)
 
   // tabs box?
   GtkWidget *tabs_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-  gtk_box_append(GTK_BOX(tabs_box), notebook);
-  gtk_box_append(GTK_BOX(tabs_box), new_tab_button);
   gtk_box_append(GTK_BOX(root_container), tabs_box);
+  gtk_box_append(GTK_BOX(tabs_box), notebook);
 
   gtk_widget_set_hexpand(tabs_box, TRUE);
   gtk_widget_set_vexpand(tabs_box, TRUE);
-
 
   gtk_window_set_child(GTK_WINDOW(window), root_container);
 }

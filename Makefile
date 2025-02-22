@@ -1,6 +1,6 @@
 CC = gcc
 PKGCONFIG = `pkg-config --cflags --libs gtk4`
-CFLAGS = -Wall -Wextra -I./include $(shell pkg-config --cflags gtk4)
+CFLAGS = -I./include $(shell pkg-config --cflags gtk4)
 LDFLAGS = $(shell pkg-config --libs gtk4)
 
 SRC_DIR = src
