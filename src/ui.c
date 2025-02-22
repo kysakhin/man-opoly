@@ -1,4 +1,5 @@
 #include "../include/ui.h"
+#include "gtk/gtkcssprovider.h"
 #include <stdio.h>
 #include "../include/fuzzy.h"
 #include "gtk/gtk.h"
@@ -15,6 +16,20 @@ typedef struct {
   GtkEntry *entry;
   GtkBox *cont;
 } Widget;
+
+void load_css(void) 
+{
+  GtkCssProvider *provider = gtk_css_provider_new();
+  GFile *css_file = g_file_new_for_path("style.css");
+
+  gtk_css_provider_load_from_file(provider, css_file);
+
+  gtk_style_context_add_provider_for_display(
+    gdk_display_get_default(),
+    GTK_STYLE_PROVIDER(provider),
+    GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+  );
+}
 
 void close_tab(GtkButton *button, gpointer user_data)
 {
@@ -88,6 +103,7 @@ void display_man_page(GtkButton *button, gpointer user_data)
   gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(text_view), GTK_WRAP_WORD);
   gtk_text_view_set_editable(GTK_TEXT_VIEW(text_view), FALSE);
   gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(text_view), FALSE);
+  gtk_widget_add_css_class(text_view, "text-view");
 
   GtkWidget *scrolled_window = gtk_scrolled_window_new();
   gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled_window), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
@@ -166,6 +182,7 @@ void fetch(GtkButton *button, gpointer user_data)
     GtkWidget *btn = gtk_button_new_with_label(results[i].line);
     g_signal_connect(btn, "clicked", G_CALLBACK(display_man_page), widget);
     gtk_box_append(GTK_BOX(widget->cont), btn);
+    gtk_widget_add_css_class(btn, "button");
   }
 
 
@@ -192,6 +209,7 @@ void create_new_tab(GtkNotebook *notebook)
   gtk_widget_set_hexpand(entry, TRUE);
   gtk_box_append(GTK_BOX(tab_content), entry);
   gtk_widget_set_valign(entry, GTK_ALIGN_START);
+  gtk_widget_add_css_class(entry, "entry");
 
   // to display results
   GtkWidget *scrollable_int = gtk_scrolled_window_new();
@@ -199,6 +217,8 @@ void create_new_tab(GtkNotebook *notebook)
   gtk_widget_set_hexpand(scrollable_int, TRUE);
   gtk_widget_set_vexpand(scrollable_int, TRUE);
   gtk_box_append(GTK_BOX(tab_content), scrollable_int);
+
+  // sample content
 
   Widget *curr = g_new(Widget, 1);
   curr->entry = GTK_ENTRY(entry);
@@ -222,7 +242,9 @@ void create_new_tab(GtkNotebook *notebook)
 
   g_signal_connect(close_button, "clicked", G_CALLBACK(close_tab), curr_tab);
 
-  gtk_notebook_append_page(notebook, tab_content, tab_label);
+  int new_page_index = gtk_notebook_append_page(notebook, tab_content, tab_label);
+
+  gtk_notebook_set_current_page(notebook, new_page_index);
 }
 
 GtkWidget* create_new_tab_button(GtkNotebook *notebook)
@@ -244,13 +266,19 @@ GtkWidget* create_new_tab_button(GtkNotebook *notebook)
 
 void activate(GtkApplication* app, gpointer user_data) 
 {
+
+  load_css();
+
   GtkWidget* window = gtk_application_window_new(app);
   gtk_window_set_title(GTK_WINDOW(window), "Manopoly");
   gtk_window_set_default_size(GTK_WINDOW(window), 900, 700);
   gtk_window_present(GTK_WINDOW(window));
+  gtk_widget_add_css_class(window, "window");
 
   // root container
   GtkWidget *root_container = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+
+  gtk_widget_add_css_class(root_container, "content-box");
 
   gtk_widget_set_hexpand(root_container, TRUE);
   gtk_widget_set_vexpand(root_container, TRUE);
