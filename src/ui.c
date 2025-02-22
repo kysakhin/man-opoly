@@ -5,16 +5,24 @@
 
 #define MAX_RESULTS 10 
 
-typedef struct {
-  GtkNotebook *tab;
-  GtkEntry *entry;
-  GtkBox *cont;
-} Widget;
-
 typedef struct Tab {
   GtkNotebook *notebook;
   GtkWidget *child;
 } Tab;
+
+typedef struct {
+  Tab *tab;
+  GtkEntry *entry;
+  GtkBox *cont;
+} Widget;
+
+void close_tab(GtkButton *button, gpointer user_data)
+{
+  Tab *curr = (Tab *)user_data;
+  int p_num = gtk_notebook_page_num(curr->notebook, curr->child);
+  gtk_notebook_remove_page(curr->notebook, p_num);
+}
+
 
 void clear_children(GtkWidget *widget) 
 {
@@ -36,6 +44,19 @@ void display_man_page(GtkButton *button, gpointer user_data)
   page++;
   int num = *page - '0';
   *strchr(name, ' ') = 0;
+
+  // set tab label
+
+  GtkWidget *tab_label = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+  GtkWidget *label = gtk_label_new(name);
+  GtkWidget *close_button = gtk_button_new_with_label("x");
+  gtk_widget_add_css_class(close_button, "flat");
+  gtk_widget_set_valign(close_button, GTK_ALIGN_END);
+  gtk_box_append(GTK_BOX(tab_label), label);
+  gtk_box_append(GTK_BOX(tab_label), close_button);
+  gtk_notebook_set_tab_label(widget->tab->notebook, widget->tab->child, tab_label);
+
+  g_signal_connect(close_button, "clicked", G_CALLBACK(close_tab), widget->tab);
 
   char command[128];
   snprintf(command, sizeof(command), "man -P cat %d %s",num, name);
@@ -65,6 +86,8 @@ void display_man_page(GtkButton *button, gpointer user_data)
   GtkTextBuffer *buffer_view = gtk_text_view_get_buffer(GTK_TEXT_VIEW(text_view));
   gtk_text_buffer_set_text(buffer_view, content, -1);
   gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(text_view), GTK_WRAP_WORD);
+  gtk_text_view_set_editable(GTK_TEXT_VIEW(text_view), FALSE);
+  gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(text_view), FALSE);
 
   GtkWidget *scrolled_window = gtk_scrolled_window_new();
   gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled_window), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
@@ -81,10 +104,24 @@ void fetch(GtkButton *button, gpointer user_data)
   GtkEntryBuffer *buf = gtk_entry_get_buffer(widget->entry);
   const char *text = gtk_entry_buffer_get_text(buf);
 
+  // set tab label
+  char new_text[128];
+  snprintf(new_text, sizeof(new_text), "Search Results for: %s", text);
+
+  GtkWidget *tab_label = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+  GtkWidget *label = gtk_label_new(new_text);
+  GtkWidget *close_button = gtk_button_new_with_label("x");
+  gtk_widget_add_css_class(close_button, "flat");
+  gtk_widget_set_valign(close_button, GTK_ALIGN_END);
+  gtk_box_append(GTK_BOX(tab_label), label);
+  gtk_box_append(GTK_BOX(tab_label), close_button);
+  gtk_notebook_set_tab_label(widget->tab->notebook, widget->tab->child, tab_label);
+
+  g_signal_connect(close_button, "clicked", G_CALLBACK(close_tab), widget->tab);
+
   char command[256];
   snprintf(command, sizeof(command), "man -k \"%s\"", text);
   FILE *fp = popen(command, "r");
-  g_print("%s", command);
 
   if (fp == NULL) {
     perror("Failed to run command");
@@ -123,6 +160,8 @@ void fetch(GtkButton *button, gpointer user_data)
     }
   }
 
+  gtk_widget_set_vexpand(GTK_WIDGET(widget->cont), TRUE);
+  gtk_widget_set_hexpand(GTK_WIDGET(widget->cont), TRUE);
   for (int i = 0; i < result_count && i < MAX_RESULTS; i++) {
     GtkWidget *btn = gtk_button_new_with_label(results[i].line);
     g_signal_connect(btn, "clicked", G_CALLBACK(display_man_page), widget);
@@ -133,24 +172,7 @@ void fetch(GtkButton *button, gpointer user_data)
   gtk_entry_buffer_set_text(buf, "", 0);
 }
 
-// tabs feature
-// tabs should have dynamic title setting
-// it should have a close button
-// it shold be easy to pass into functions.
-//
-// function: create_new_tab(button, notebook)
-// creating the landing page right inside this function.
-// this should create with the close button aswell.
-// function: edit_tab_label(notebook, title)
-//
-// so now i gotta pass the notebook around.
 
-
-void close_tab(GtkButton *button, gpointer user_data)
-{
-  Tab *curr = (Tab *)user_data;
-  gtk_notebook_detach_tab(curr->notebook, curr->child);
-}
 
 
 void create_new_tab(GtkNotebook *notebook)
@@ -158,11 +180,10 @@ void create_new_tab(GtkNotebook *notebook)
   GtkWidget *tab_label = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
   GtkWidget *label = gtk_label_new("Home");
   GtkWidget *close_button = gtk_button_new_with_label("x");
+  gtk_widget_add_css_class(close_button, "flat");
   gtk_widget_set_valign(close_button, GTK_ALIGN_END);
   gtk_box_append(GTK_BOX(tab_label), label);
   gtk_box_append(GTK_BOX(tab_label), close_button);
-
-  
 
   GtkWidget *tab_content = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
 
@@ -179,9 +200,6 @@ void create_new_tab(GtkNotebook *notebook)
   gtk_widget_set_vexpand(scrollable_int, TRUE);
   gtk_box_append(GTK_BOX(tab_content), scrollable_int);
 
-
-  // sample content
-
   Widget *curr = g_new(Widget, 1);
   curr->entry = GTK_ENTRY(entry);
   curr->cont = GTK_BOX(tab_content);
@@ -196,13 +214,31 @@ void create_new_tab(GtkNotebook *notebook)
   gtk_box_append(GTK_BOX(content_box), label_content);
   gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrollable_int), content_box);
 
-  Tab curr_tab;
-  curr_tab.notebook = notebook;
-  curr_tab.child = tab_content;
+  Tab *curr_tab = g_new(Tab, 1);
+  curr_tab->notebook = notebook;
+  curr_tab->child = tab_content;
 
-  g_signal_connect(close_button, "clicked", G_CALLBACK(close_tab), &curr_tab);
+  curr->tab = curr_tab;
+
+  g_signal_connect(close_button, "clicked", G_CALLBACK(close_tab), curr_tab);
 
   gtk_notebook_append_page(notebook, tab_content, tab_label);
+}
+
+GtkWidget* create_new_tab_button(GtkNotebook *notebook)
+{
+  GtkWidget *button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+  GtkWidget *new_tab_button = gtk_button_new_with_label("+");
+
+  gtk_widget_add_css_class(new_tab_button, "flat");
+  gtk_widget_set_margin_start(new_tab_button, 2);
+  gtk_widget_set_margin_end(new_tab_button, 2);
+
+  gtk_box_append(GTK_BOX(button_box), new_tab_button);
+
+  g_signal_connect_swapped(new_tab_button, "clicked", G_CALLBACK(create_new_tab), notebook);
+
+  return button_box;
 }
 
 
@@ -210,18 +246,34 @@ void activate(GtkApplication* app, gpointer user_data)
 {
   GtkWidget* window = gtk_application_window_new(app);
   gtk_window_set_title(GTK_WINDOW(window), "Manopoly");
-  gtk_window_set_default_size(GTK_WINDOW(window), 700, 500);
+  gtk_window_set_default_size(GTK_WINDOW(window), 900, 700);
   gtk_window_present(GTK_WINDOW(window));
-
 
   // root container
   GtkWidget *root_container = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
 
+  gtk_widget_set_hexpand(root_container, TRUE);
+  gtk_widget_set_vexpand(root_container, TRUE);
+
   // notebook
   GtkWidget *notebook = gtk_notebook_new();
-  gtk_box_append(GTK_BOX(root_container), notebook);
 
   create_new_tab(GTK_NOTEBOOK(notebook));
+
+  // button for new tab
+  GtkWidget *new_tab_button = create_new_tab_button(GTK_NOTEBOOK(notebook));
+  gtk_notebook_set_action_widget(GTK_NOTEBOOK(notebook), new_tab_button, GTK_PACK_END);
+
+
+  // tabs box?
+  GtkWidget *tabs_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+  gtk_box_append(GTK_BOX(tabs_box), notebook);
+  gtk_box_append(GTK_BOX(tabs_box), new_tab_button);
+  gtk_box_append(GTK_BOX(root_container), tabs_box);
+
+  gtk_widget_set_hexpand(tabs_box, TRUE);
+  gtk_widget_set_vexpand(tabs_box, TRUE);
+
 
   gtk_window_set_child(GTK_WINDOW(window), root_container);
 }
