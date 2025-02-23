@@ -1,7 +1,7 @@
 CC = gcc
 PKGCONFIG = `pkg-config --cflags --libs gtk4`
-CFLAGS = -I./include $(shell pkg-config --cflags gtk4)
-LDFLAGS = $(shell pkg-config --libs gtk4)
+CFLAGS = -I./include $(shell pkg-config --cflags gtk4 webkitgtk-6.0)
+LDFLAGS = $(shell pkg-config --libs gtk4 webkitgtk-6.0)
 
 SRC_DIR = src
 OBJ_DIR = obj

@@ -4,11 +4,13 @@
 #include <stdio.h>
 #include "../include/fuzzy.h"
 #include "gtk/gtk.h"
+#include <webkitgtk-6.0/webkit/webkit.h>
 
 #define MAX_RESULTS 10 
 
 void create_new_tab(GtkNotebook *notebook);
 void close_tab(GtkButton *button, gpointer user_data);
+void create_google_search_tab(GtkWidget *button, GtkNotebook* notebook);
 
 typedef struct Tab {
   GtkNotebook *notebook;
@@ -230,6 +232,38 @@ gboolean on_key_press(GtkEventControllerKey *controller, guint keyval, guint key
   return GDK_EVENT_PROPAGATE;
 }
 
+void create_google_search_tab(GtkWidget *button, GtkNotebook* notebook)
+{
+  GtkWidget *tab_label = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+  GtkWidget *label = gtk_label_new("Google");
+  GtkWidget *close_button = gtk_button_new_with_label("x");
+  gtk_widget_add_css_class(close_button, "flat");
+  gtk_widget_set_valign(close_button, GTK_ALIGN_END);
+  gtk_box_append(GTK_BOX(tab_label), label);
+  gtk_box_append(GTK_BOX(tab_label), close_button);
+  GtkWidget *webview = webkit_web_view_new();
+
+  // Create scrollable container for WebView
+  GtkWidget *scrolled_window = gtk_scrolled_window_new();
+  gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrolled_window), webview);
+  gtk_widget_set_vexpand(scrolled_window, TRUE);
+  gtk_widget_set_hexpand(scrolled_window, TRUE);
+
+  // link
+  Tab *curr = g_new(Tab, 1);
+  curr->notebook = notebook;
+  curr->child = scrolled_window;
+
+  g_signal_connect(close_button, "clicked", G_CALLBACK(close_tab), curr);
+
+  // Load Google search
+  webkit_web_view_load_uri(WEBKIT_WEB_VIEW(webview), "https://www.google.com");
+
+  // Append the tab
+  int page_num = gtk_notebook_append_page(notebook, scrolled_window, tab_label);
+  gtk_notebook_set_current_page(notebook, page_num);
+}
+
 
 void create_new_tab(GtkNotebook *notebook)
 {
@@ -335,9 +369,16 @@ void activate(GtkApplication* app, gpointer user_data)
 
   create_new_tab(GTK_NOTEBOOK(notebook));
 
+  GtkWidget *action_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
   // button for new tab
   GtkWidget *new_tab_button = create_new_tab_button(GTK_NOTEBOOK(notebook));
-  gtk_notebook_set_action_widget(GTK_NOTEBOOK(notebook), new_tab_button, GTK_PACK_END);
+  gtk_box_append(GTK_BOX(action_box), new_tab_button);
+
+  // button for create google tab
+  GtkWidget *gtab_create = gtk_button_new_with_label("Google");
+  gtk_box_append(GTK_BOX(action_box), gtab_create);
+  gtk_notebook_set_action_widget(GTK_NOTEBOOK(notebook), action_box, GTK_PACK_END);
+  g_signal_connect(gtab_create, "clicked", G_CALLBACK(create_google_search_tab), GTK_NOTEBOOK(notebook));
 
 
   // tabs box?
